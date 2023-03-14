@@ -69,10 +69,19 @@ def chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
 
 
 def regenerate_wrapper(styled_history, history, max_length, top_p, temperature):
+    if len(history) == 0:
+        return [], [], ''
+    styled_history, history, query = edit_wrapper(styled_history, history, max_length, top_p, temperature)
+    return chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
+
+
+def edit_wrapper(styled_history, history, max_length, top_p, temperature):
+    if len(history) == 0:
+        return [], [], ''
     query = history[-1][0]
     history = history[:-1]
     styled_history = styled_history[:-1]
-    return chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
+    return styled_history, history, query
 
 
 def reset_history():
@@ -116,19 +125,21 @@ def main():
         gr.Markdown('''`Max Length` 是生成文本时的长度限制，`Top P` 控制输出文本中概率最高前 p 个单词的总概率，`Temperature` 控制生成文本的多样性和随机性。<br/>`Top P` 变小会生成更多样和不相关的文本；变大会生成更保守和相关的文本。<br/>`Temperature` 变小会生成更保守和相关的文本；变大会生成更奇特和不相关的文本。''')
 
         with gr.Row():
-            max_length = gr.Slider(minimum=0.0, maximum=4096.0, step=1.0, label='Max Length', value=configs['max_length'])
-            top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Top P', value=configs['top_p'])
-            temperature = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Temperature', value=configs['temperature'])
+            max_length = gr.Slider(minimum=4.0, maximum=4096.0, step=4.0, label='Max Length', value=configs['max_length'])
+            top_p = gr.Slider(minimum=0.01, maximum=1.0, step=0.01, label='Top P', value=configs['top_p'])
+            temperature = gr.Slider(minimum=0.01, maximum=1.0, step=0.01, label='Temperature', value=configs['temperature'])
         save_conf = gr.Button('保存设置')
 
         gr.Markdown("""<h2>聊天记录</h2>""")
 
         chatbot = gr.Chatbot(elem_id='chatbot', show_label=False)
         state = gr.State([])
+
         message = gr.Textbox(placeholder='输入内容', label='你：')
 
         with gr.Row():
             submit = gr.Button('提交')
+            edit = gr.Button('修改问题')
             regen = gr.Button('重新生成')
 
         delete = gr.Button('清空聊天')
@@ -145,6 +156,7 @@ def main():
         save.click(save_history, inputs=[state])
         message.submit(chat_wrapper, inputs=submit_list, outputs=state_list)
         submit.click(chat_wrapper, inputs=submit_list, outputs=state_list)
+        edit.click(edit_wrapper, inputs=submit_list[1:], outputs=state_list)
         regen.click(regenerate_wrapper, inputs=submit_list[1:], outputs=state_list)
         delete.click(reset_history, outputs=state_list)
 
