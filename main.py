@@ -113,6 +113,7 @@ def main():
             configs = json.loads(f.read())
 
         gr.Markdown('''<h1><center>ChatGLM WebUI</center></h1>''')
+        gr.Markdown('''`Max Length` 是生成文本时的长度限制，`Top P` 控制输出文本中概率最高前 p 个单词的总概率，`Temperature` 控制生成文本的多样性和随机性。<br/>`Top P` 变小会生成更多样和不相关的文本；变大会生成更保守和相关的文本。<br/>`Temperature` 变小会生成更保守和相关的文本；变大会生成更奇特和不相关的文本。''')
 
         with gr.Row():
             max_length = gr.Slider(minimum=0.0, maximum=4096.0, step=1.0, label='Max Length', value=configs['max_length'])
