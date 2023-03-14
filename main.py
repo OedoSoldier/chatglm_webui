@@ -71,11 +71,11 @@ def chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
 def regenerate_wrapper(styled_history, history, max_length, top_p, temperature):
     if len(history) == 0:
         return [], [], ''
-    styled_history, history, query = edit_wrapper(styled_history, history, max_length, top_p, temperature)
+    styled_history, history, query = edit_wrapper(styled_history, history)
     return chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
 
 
-def edit_wrapper(styled_history, history, max_length, top_p, temperature):
+def edit_wrapper(styled_history, history):
     if len(history) == 0:
         return [], [], ''
     query = history[-1][0]
@@ -156,7 +156,7 @@ def main():
         save.click(save_history, inputs=[state])
         message.submit(chat_wrapper, inputs=submit_list, outputs=state_list)
         submit.click(chat_wrapper, inputs=submit_list, outputs=state_list)
-        edit.click(edit_wrapper, inputs=submit_list[1:], outputs=state_list)
+        edit.click(edit_wrapper, inputs=submit_list[1:3], outputs=state_list)
         regen.click(regenerate_wrapper, inputs=submit_list[1:], outputs=state_list)
         delete.click(reset_history, outputs=state_list)
 
