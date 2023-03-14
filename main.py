@@ -7,31 +7,25 @@ from transformers import AutoTokenizer, AutoModel
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Arguments")
-    parser.add_argument(
-        "--path",
-        default="chatglm-6b",
-        help="The path of ChatGLM model")
-    parser.add_argument(
-        "--low_vram",
-        action="store_true",
-        help="Use 4-bit quantization")
-    parser.add_argument(
-        "--med_vram",
-        action="store_true",
-        help="Use 8-bit quantization")
-    parser.add_argument("--cpu", action="store_true", help="Use CPU")
-    parser.add_argument(
-        "--low_ram",
-        action="store_true",
-        help="Use CPU (low ram)")
+    parser = argparse.ArgumentParser(description='ChatGLM Arguments')
+
+    parser.add_argument('--path', default='chatglm-6b', help='The path of ChatGLM model')
+
+    quantize_group = parser.add_mutually_exclusive_group()
+    quantize_group.add_argument('--low_vram', action='store_true', help='Use 4-bit quantization')
+    quantize_group.add_argument('--med_vram', action='store_true', help='Use 8-bit quantization')
+
+    parser.add_argument('--cpu', action='store_true', help='Use CPU')
+
+    parser.add_argument('--low_ram', action='store_true', help='Use CPU (low RAM)')
+
     return parser.parse_args()
 
 
 args = get_args()
 
 if not os.path.isdir(args.path):
-    raise FileNotFoundError("Model not found")
+    raise FileNotFoundError('Model not found')
 
 tokenizer = AutoTokenizer.from_pretrained(args.path, trust_remote_code=True)
 model = AutoModel.from_pretrained(args.path, trust_remote_code=True)
@@ -52,173 +46,106 @@ model = model.eval()
 
 
 def parse_text(text):
-    lines = text.split("\n")
+    lines = text.split('\n')
     for i, line in enumerate(lines):
-        if "```" in line:
-            items = line.split('`')
-            if items[-1]:
-                lines[i] = f'<pre><code class="{items[-1]}">'
+        if '```' in line:
+            item = line.split('`')[-1]
+            if item:
+                lines[i] = f'<pre><code class="{item}">'
             else:
-                lines[i] = f'</code></pre>'
+                lines[i] = '</code></pre>'
         else:
             if i > 0:
-                line = line.replace("<", "&lt;")
-                line = line.replace(">", "&gt;")
-                lines[i] = '<br/>' + line  # .replace(" ", "&nbsp;")
-    return "".join(lines)
+                line = line.replace('<', '&lt;').replace('>', '&gt;')
+                lines[i] = f'<br/>{line}'
+    return ''.join(lines)
 
 
-def chat(query, styled_history, history, max_length, top_p, temperature):
+def chat_wrapper(query, styled_history, history, max_length, top_p, temperature):
     message, history = model.chat(tokenizer, query, history=history,
                                   max_length=max_length, top_p=top_p, temperature=temperature)
     styled_history.append((parse_text(query), parse_text(message)))
-    return styled_history, history
+    return styled_history, history, ''
 
 
-def regenerate(styled_history, history, max_length, top_p, temperature):
+def regenerate_wrapper(styled_history, history, max_length, top_p, temperature):
     query = history[-1][0]
     history = history[:-1]
-    styled_history = styled_history[-1]
-    return chat(query, styled_history, history, max_length, top_p, temperature)
+    styled_history = styled_history[:-1]
+    return chat_wrapper(query, styled_history, history, max_length, top_p, temperature)
 
 
-def reset_history(styled_history, history):
-    history = []
-    styled_history = []
-    return styled_history, history
+def reset_history():
+    return [], [], ''
 
 
 def save_history(history):
-    if not os.path.exists("log"):
-        os.mkdir("log")
-    dict_list = [{"input": item[0], "output": item[1]} for item in history]
+    os.makedirs('log', exist_ok=True)
+    dict_list = [{'input': q, 'output': a} for q, a in history]
 
-    json_data = json.dumps(dict_list, indent=2, ensure_ascii=False)
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-
-    filename = f"log/{timestamp}.json"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(json_data)
+    with open(f'log/{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.json', 'w', encoding='utf-8') as f:
+        json.dump(dict_list, f, ensure_ascii=False, indent=2)
 
 
 def save_config(max_length, top_p, temperature):
-    configs = {
-        "max_length": max_length,
-        "top_p": top_p,
-        "temperature": temperature}
-    json_data = json.dumps(configs, indent=2)
-    with open("config.json", "w") as f:
-        f.write(json_data)
+    with open('config.json', 'w') as f:
+        json.dump({'max_length': max_length, 'top_p': top_p, 'temperature': temperature}, f, indent=2)
 
 
 def load_history(file, styled_history, history):
     current_styled_history, current_history = styled_history.copy(), history.copy()
     try:
-        with open(file.name, "r", encoding="utf-8") as f:
-            dict_list = json.loads(f.read())
-        history = [(item["input"], item["output"]) for item in dict_list]
-        styled_history = [
-            (parse_text(
-                item["input"]), parse_text(
-                item["output"])) for item in dict_list]
+        with open(file.name, 'r', encoding='utf-8') as f:
+            dict_list = json.load(f)
+        history = [(item['input'], item['output']) for item in dict_list]
+        styled_history = [(parse_text(item['input']), parse_text(item['output'])) for item in dict_list]
     except BaseException:
         return current_styled_history, current_history
-    return styled_history, history
+    return styled_history, history, ''
 
 
 def main():
     with gr.Blocks() as app:
-        if not os.path.isfile("config.json"):
+        if not os.path.isfile('config.json'):
             save_config(2048, 0.7, 0.95)
 
-        with open("config.json", "r", encoding="utf-8") as f:
+        with open('config.json', 'r', encoding='utf-8') as f:
             configs = json.loads(f.read())
 
-        gr.Markdown("""<h1><center>ChatGLM</center></h1>""")
+        gr.Markdown('''<h1><center>ChatGLM WebUI</center></h1>''')
 
         with gr.Row():
-            max_length = gr.Slider(
-                minimum=0.0,
-                maximum=4096.0,
-                step=1.0,
-                label="Max Length",
-                value=configs["max_length"])
-            top_p = gr.Slider(
-                minimum=0.0,
-                maximum=1.0,
-                step=0.01,
-                label="Top P",
-                value=configs["top_p"])
-            temperature = gr.Slider(
-                minimum=0.0,
-                maximum=1.0,
-                step=0.01,
-                label="Temperature",
-                value=configs["temperature"])
-        save_conf = gr.Button("保存设置")
+            max_length = gr.Slider(minimum=0.0, maximum=4096.0, step=1.0, label='Max Length', value=configs['max_length'])
+            top_p = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Top P', value=configs['top_p'])
+            temperature = gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Temperature', value=configs['temperature'])
+        save_conf = gr.Button('保存设置')
 
         gr.Markdown("""<h2>聊天记录</h2>""")
 
-        chatbot1 = gr.Chatbot(elem_id="chatbot", show_label=False)
+        chatbot = gr.Chatbot(elem_id='chatbot', show_label=False)
         state = gr.State([])
-        message = gr.Textbox(placeholder="输入内容", label="你：")
+        message = gr.Textbox(placeholder='输入内容', label='你：')
 
         with gr.Row():
-            submit = gr.Button("提交")
-            regen = gr.Button("重新生成")
+            submit = gr.Button('提交')
+            regen = gr.Button('重新生成')
 
-        delete = gr.Button("清空聊天")
+        delete = gr.Button('清空聊天')
 
         with gr.Row():
-            save = gr.Button("保存对话 （在 log 文件夹下）")
-            load = gr.UploadButton(
-                "读取对话",
-                file_types=["file"],
-                file_count="single")
+            save = gr.Button('保存对话 （在 log 文件夹下）')
+            load = gr.UploadButton('读取对话', file_types=['file'], file_count='single')
+
+        submit_list = [message, chatbot, state, max_length, top_p, temperature]
+        state_list = [chatbot, state, message]
 
         save_conf.click(save_config, inputs=[max_length, top_p, temperature])
-        load.upload(
-            load_history, inputs=[
-                load, chatbot1, state], outputs=[
-                chatbot1, state])
+        load.upload(load_history, inputs=[load, chatbot, state], outputs=state_list)
         save.click(save_history, inputs=[state])
-        message.submit(
-            chat,
-            inputs=[
-                message,
-                chatbot1,
-                state,
-                max_length,
-                top_p,
-                temperature],
-            outputs=[
-                chatbot1,
-                state])
-        message.submit(lambda: "", None, message)
-        submit.click(
-            chat,
-            inputs=[
-                message,
-                chatbot1,
-                state,
-                max_length,
-                top_p,
-                temperature],
-            outputs=[
-                chatbot1,
-                state])
-        submit.click(lambda: "", None, message)
-        regen.click(
-            regenerate, inputs=[
-                chatbot1, state, max_length, top_p, temperature], outputs=[
-                chatbot1, state])
-        regen.click(lambda: "", None, message)
-        delete.click(
-            reset_history, inputs=[
-                chatbot1, state], outputs=[
-                chatbot1, state])
-        delete.click(lambda: "", None, message)
+        message.submit(chat_wrapper, inputs=submit_list, outputs=state_list)
+        submit.click(chat_wrapper, inputs=submit_list, outputs=state_list)
+        regen.click(regenerate_wrapper, inputs=submit_list[1:], outputs=state_list)
+        delete.click(reset_history, outputs=state_list)
 
         app.launch(debug=True)
 
