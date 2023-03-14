@@ -18,11 +18,11 @@ def get_args():
         "--med_vram",
         action="store_true",
         help="Use 8-bit quantization")
-    parser.add_argument("--cpu", action="store_true", help="Use cpu")
+    parser.add_argument("--cpu", action="store_true", help="Use CPU")
     parser.add_argument(
         "--low_ram",
         action="store_true",
-        help="Use cpu (low ram)")
+        help="Use CPU (low ram)")
     return parser.parse_args()
 
 
@@ -30,8 +30,8 @@ args = get_args()
 
 if os.path.isdir(args.path):
     tokenizer = AutoTokenizer.from_pretrained(
-        "chatglm-6b", trust_remote_code=True)
-    model = AutoModel.from_pretrained("chatglm-6b", trust_remote_code=True)
+        args.path, trust_remote_code=True)
+    model = AutoModel.from_pretrained(args.path, trust_remote_code=True)
 else:
     raise FileNotFoundError("Model not found")
 
@@ -73,7 +73,6 @@ styled_history = []
 def chat(query, styled_history, history):
     message, history = model.chat(tokenizer, query, history=history)
     styled_history.append((parse_text(query), parse_text(message)))
-    # history.append((parse_text(query), parse_text(message)))
     return styled_history, history
 
 
