@@ -94,7 +94,7 @@ def edit_wrapper(styled_history, history):
 
 
 def reset_history():
-    return [], [], ''
+    return [], [], '', *gr_hide()
 
 
 def save_history(history):
@@ -138,7 +138,7 @@ def update_history(styled_history, history, log, idx):
         return lst
     styled_history = swap_value(styled_history, idx, parse_text(log))
     history = swap_value(history, idx, log)
-    return styled_history, history, {'visible': False, '__type__': 'update'}, {'value': '', 'label': '', '__type__': 'update'}, []
+    return styled_history, history, *gr_hide()
 
 
 def gr_hide():
@@ -189,6 +189,7 @@ with gr.Blocks() as demo:
 
     input_list = [message, chatbot, state, max_length, top_p, temperature, memory_limit]
     output_list = [chatbot, state, message]
+    edit_list = [edit_log, log, log_idx]
 
     save_conf.click(save_config, inputs=input_list[3:])
     load.upload(load_history, inputs=[load, chatbot, state], outputs=output_list)
@@ -197,12 +198,12 @@ with gr.Blocks() as demo:
     submit.click(chat_wrapper, inputs=input_list, outputs=output_list)
     edit.click(edit_wrapper, inputs=input_list[1:3], outputs=output_list)
     regen.click(regenerate_wrapper, inputs=input_list[1:], outputs=output_list)
-    delete.click(reset_history, outputs=output_list)
-    chatbot.select(gr_show_and_load, inputs=[state], outputs=[edit_log, log, log_idx])
+    delete.click(reset_history, outputs=output_list + edit_list)
+    chatbot.select(gr_show_and_load, inputs=[state], outputs=edit_list)
     edit_kwargs = {'inputs': [chatbot, state, log, log_idx], 'outputs': [chatbot, state, edit_log, log, log_idx]} 
     log.submit(update_history, **edit_kwargs)
     submit_log.click(update_history, **edit_kwargs)
-    cancel_log.click(gr_hide, outputs=[edit_log, log, log_idx])
+    cancel_log.click(gr_hide, outputs=edit_list)
 
 
 if __name__ == '__main__':
