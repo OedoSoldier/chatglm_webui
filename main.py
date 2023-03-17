@@ -78,7 +78,7 @@ def chat_wrapper(query, styled_history, history, max_length, top_p, temperature,
 
 def regenerate_wrapper(styled_history, history, max_length, top_p, temperature, memory_limit):
     if not history:
-        return [], [], ''
+        return [], [], '', *gr_hide()
 
     styled_history, history, query, _, _, _ = edit_wrapper(styled_history, history)
     return chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit)
