@@ -73,14 +73,14 @@ def chat_wrapper(query, styled_history, history, max_length, top_p, temperature,
     message, history = model.chat(tokenizer, query, history=history,
                                   max_length=max_length, top_p=top_p, temperature=temperature)
     styled_history.append((parse_text(query), parse_text(message)))
-    return styled_history, history, ''
+    return styled_history, history, '', *gr_hide()
 
 
 def regenerate_wrapper(styled_history, history, max_length, top_p, temperature, memory_limit):
     if not history:
         return [], [], ''
 
-    styled_history, history, query = edit_wrapper(styled_history, history)
+    styled_history, history, query, _, _ = edit_wrapper(styled_history, history)
     return chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit)
 
 
@@ -90,7 +90,7 @@ def edit_wrapper(styled_history, history):
     query = history[-1][0]
     history = history[:-1]
     styled_history = styled_history[:-1]
-    return styled_history, history, query
+    return styled_history, history, query, *gr_hide()
 
 
 def reset_history():
@@ -118,7 +118,7 @@ def load_history(file, styled_history, history):
         styled_history = [(parse_text(item['input']), parse_text(item['output'])) for item in dict_list]
     except BaseException:
         return current_styled_history, current_history, ''
-    return styled_history, history, ''
+    return styled_history, history, '', *gr_hide()
 
 
 def gr_show_and_load(history, evt: gr.SelectData):
@@ -192,15 +192,15 @@ with gr.Blocks() as demo:
     edit_list = [edit_log, log, log_idx]
 
     save_conf.click(save_config, inputs=input_list[3:])
-    load.upload(load_history, inputs=[load, chatbot, state], outputs=output_list)
+    load.upload(load_history, inputs=[load, chatbot, state], outputs=output_list + edit_list)
     save.click(save_history, inputs=[state])
-    message.submit(chat_wrapper, inputs=input_list, outputs=output_list)
-    submit.click(chat_wrapper, inputs=input_list, outputs=output_list)
-    edit.click(edit_wrapper, inputs=input_list[1:3], outputs=output_list)
-    regen.click(regenerate_wrapper, inputs=input_list[1:], outputs=output_list)
+    message.submit(chat_wrapper, inputs=input_list, outputs=output_list + edit_list)
+    submit.click(chat_wrapper, inputs=input_list, outputs=output_list + edit_list)
+    edit.click(edit_wrapper, inputs=input_list[1:3], outputs=output_list + edit_list)
+    regen.click(regenerate_wrapper, inputs=input_list[1:], outputs=output_list + edit_list)
     delete.click(reset_history, outputs=output_list + edit_list)
     chatbot.select(gr_show_and_load, inputs=[state], outputs=edit_list)
-    edit_kwargs = {'inputs': [chatbot, state, log, log_idx], 'outputs': [chatbot, state, edit_log, log, log_idx]} 
+    edit_kwargs = {'inputs': [chatbot, state, log, log_idx], 'outputs': [chatbot, state] + edit_list} 
     log.submit(update_history, **edit_kwargs)
     submit_log.click(update_history, **edit_kwargs)
     cancel_log.click(gr_hide, outputs=edit_list)
