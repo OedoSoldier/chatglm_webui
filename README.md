@@ -6,6 +6,8 @@
 
 `pip install -r requirements.txt`
 
+Gradio 版本必须大于 3.21.0！
+
 ## 运行
 
 通过 `git clone https://huggingface.co/THUDM/chatglm-6b` 下载模型文件到根目录下然后 `python main.py` 即可，默认状态至少需要 13GB 显存。
