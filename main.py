@@ -80,7 +80,7 @@ def regenerate_wrapper(styled_history, history, max_length, top_p, temperature, 
     if not history:
         return [], [], ''
 
-    styled_history, history, query, _, _ = edit_wrapper(styled_history, history)
+    styled_history, history, query, _, _, _ = edit_wrapper(styled_history, history)
     return chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit)
 
 
