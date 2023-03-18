@@ -48,9 +48,9 @@ args = get_args()
 if not os.path.isdir(args.path):
     raise FileNotFoundError("Model not found")
 
-if args.promote_path is None:
-    args.promote_path = args.path
-elif not os.path.isdir(args.promote_path):
+if args.tokenize_path is None:
+    args.tokenize_path = args.path
+elif not os.path.isdir(args.tokenize_path):
     raise FileNotFoundError("promotes not found")
 
 possible_promotes: list[str] = os.listdir(args.promote_path)
