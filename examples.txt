@@ -1,0 +1,6 @@
+早上好
+ls
+touch .bashrc
+rm .bashrc
+reboot
+继续
