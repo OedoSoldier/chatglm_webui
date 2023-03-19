@@ -88,7 +88,8 @@ def regenerate_wrapper(styled_history, history, max_length, top_p, temperature, 
         return [], [], '', *gr_hide()
 
     styled_history, history, query, _, _, _ = edit_wrapper(styled_history, history)
-    return chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit)
+    for ret in chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit):
+        yield ret
 
 
 def edit_wrapper(styled_history, history):
