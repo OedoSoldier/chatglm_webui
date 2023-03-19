@@ -3,21 +3,14 @@ import os
 import json
 import datetime
 import gradio as gr
+import torch
 from transformers import AutoTokenizer, AutoModel
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='ChatGLM Arguments')
 
-    parser.add_argument('--path', default='chatglm-6b', help='The path of ChatGLM model')
-
-    quantize_group = parser.add_mutually_exclusive_group()
-    quantize_group.add_argument('--low_vram', action='store_true', help='Use 4-bit quantization')
-    quantize_group.add_argument('--med_vram', action='store_true', help='Use 8-bit quantization')
-
-    parser.add_argument('--cpu', action='store_true', help='Use CPU')
-
-    parser.add_argument('--low_ram', action='store_true', help='Use CPU (low RAM)')
+    parser.add_argument('--path', default='chatglm-6b-int4', help='The path of ChatGLM model')
 
     return parser.parse_args()
 
@@ -27,20 +20,17 @@ args = get_args()
 if not os.path.isdir(args.path):
     raise FileNotFoundError('Model not found')
 
-tokenizer = AutoTokenizer.from_pretrained(args.path, trust_remote_code=True)
-model = AutoModel.from_pretrained(args.path, trust_remote_code=True)
-
-if args.cpu:
-    model = model.float()
-elif args.low_ram:
-    model = model.bfloat16()
+if torch.cuda.is_available():
+    device = 'cuda'
 else:
-    if args.low_vram:
-        model = model.half().quantize(4).cuda()
-    elif args.med_vram:
-        model = model.half().quantize(8).cuda()
-    else:
-        model = model.half().cuda()
+    device = 'cpu'
+
+tokenizer = AutoTokenizer.from_pretrained(args.path, trust_remote_code=True)
+
+if device == 'cuda':
+    model = AutoModel.from_pretrained(args.path, trust_remote_code=True).half().cuda()
+else:
+    model = AutoModel.from_pretrained(args.path, trust_remote_code=True).float()
 
 model = model.eval()
 
@@ -166,8 +156,8 @@ with gr.Blocks() as demo:
     with gr.Row():
         max_length = gr.Slider(minimum=4.0, maximum=4096.0, step=4.0, label='Max Length', value=configs['max_length'])
         top_p = gr.Slider(minimum=0.01, maximum=1.0, step=0.01, label='Top P', value=configs['top_p'])
-        temperature = gr.Slider(minimum=0.01, maximum=1.0, step=0.01, label='Temperature', value=configs['temperature'])
-        memory_limit = gr.Slider(minimum=-1.0, maximum=10.0, step=1.0, label='Memory Limit', value=configs['memory_limit'])
+        temperature = gr.Slider(minimum=0.01, maximum=2.0, step=0.01, label='Temperature', value=configs['temperature'])
+        memory_limit = gr.Slider(minimum=-1.0, maximum=20.0, step=1.0, label='Memory Limit', value=configs['memory_limit'])
     save_conf = gr.Button('保存设置')
 
     gr.Markdown('''<h2>提示：点击对话可以进行修改</h2>''')
