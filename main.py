@@ -63,7 +63,7 @@ def parse_text(text):
 
 def chat_wrapper(query, styled_history, history, max_length, top_p, temperature, memory_limit):
     if query == '':
-        return [], [], ''
+        return [], [], '', *gr_hide()
     if memory_limit == 0:
         history = []
         styled_history = []
