@@ -70,10 +70,17 @@ def chat_wrapper(query, styled_history, history, max_length, top_p, temperature,
     elif memory_limit > 0:
         history = history[-memory_limit:]
         styled_history = styled_history[-memory_limit:]
-    message, history = model.chat(tokenizer, query, history=history,
-                                  max_length=max_length, top_p=top_p, temperature=temperature)
-    styled_history.append((parse_text(query), parse_text(message)))
-    return styled_history, history, '', *gr_hide()
+    flag = True
+    styled_history_pos = 0
+    for message, history in model.stream_chat(tokenizer, query, history=history,
+                                  max_length=max_length, top_p=top_p, temperature=temperature):
+        if flag:
+            styled_history.append((parse_text(query), parse_text(message)))
+            styled_history_pos = len(styled_history) - 1
+            flag = False
+        else:
+            styled_history[styled_history_pos] = (parse_text(query), parse_text(message))
+        yield styled_history, history, '', *gr_hide()
 
 
 def regenerate_wrapper(styled_history, history, max_length, top_p, temperature, memory_limit):
@@ -207,4 +214,4 @@ with gr.Blocks() as demo:
 
 
 if __name__ == '__main__':
-    demo.launch(debug=True)
+    demo.queue(concurrency_count=5, max_size=20).launch(debug=True)
