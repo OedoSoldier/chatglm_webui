@@ -10,7 +10,7 @@ from transformers import AutoTokenizer, AutoModel
 def get_args():
     parser = argparse.ArgumentParser(description='ChatGLM Arguments')
 
-    parser.add_argument('--path', default='THUDM/chatglm-6b-int4', help='The path of ChatGLM model')
+    parser.add_argument('--path', default='chatglm-6b-int4', help='The path of ChatGLM model')
 
     return parser.parse_args()
 
@@ -121,9 +121,9 @@ def load_history(file, styled_history, history):
 
 def gr_show_and_load(history, evt: gr.SelectData):
     if evt.index[1] == 0:
-        label = f'Editing Q{evt.index[0]}：'
+        label = f'修改提问{evt.index[0]}：'
     else:
-        label = f'Editing Q{evt.index[0]}：'
+        label = f'修改回答{evt.index[0]}：'
     return {'visible': True, '__type__': 'update'}, {'value': history[evt.index[0]][evt.index[1]], 'label': label, '__type__': 'update'}, evt.index
 
 
@@ -150,16 +150,17 @@ with gr.Blocks() as demo:
     with open('config.json', 'r', encoding='utf-8') as f:
         configs = json.loads(f.read())
 
-    gr.Markdown('''<h1><center>ChatGLM Demo</center></h1>''')
+    gr.Markdown('''<h1><center>ChatGLM WebUI</center></h1>''')
+    gr.Markdown('''`Max Length` 是生成文本时的长度限制，`Top P` 控制输出文本中概率最高前 p 个单词的总概率，`Temperature` 控制生成文本的多样性和随机性。<br/>`Top P` 变小会生成更多样和不相关的文本；变大会生成更保守和相关的文本。<br/>`Temperature` 变小会生成更保守和相关的文本；变大会生成更奇特和不相关的文本。<br/>`Memory Limit` 对话记忆轮数，`-1` 为无限长，限制记忆可减小显存占用。''')
 
     with gr.Row():
         max_length = gr.Slider(minimum=4.0, maximum=4096.0, step=4.0, label='Max Length', value=configs['max_length'])
         top_p = gr.Slider(minimum=0.01, maximum=1.0, step=0.01, label='Top P', value=configs['top_p'])
         temperature = gr.Slider(minimum=0.01, maximum=2.0, step=0.01, label='Temperature', value=configs['temperature'])
         memory_limit = gr.Slider(minimum=-1.0, maximum=20.0, step=1.0, label='Memory Limit', value=configs['memory_limit'])
-    save_conf = gr.Button('保存设置', visible=False)
+    save_conf = gr.Button('保存设置')
 
-    gr.Markdown('''<h2>Hint: click on a chat bubble to edit chat history</h2>''')
+    gr.Markdown('''<h2>提示：点击对话可以进行修改</h2>''')
 
     state = gr.State([])
     chatbot = gr.Chatbot(elem_id='chatbot', show_label=False)
@@ -171,18 +172,18 @@ with gr.Blocks() as demo:
                 cancel_log = gr.Button('取消')
     log_idx = gr.State([])
 
-    message = gr.Textbox(placeholder='Input your message', label='Q:')
+    message = gr.Textbox(placeholder='输入内容', label='问：')
 
     with gr.Row():
-        submit = gr.Button('Submit')
-        edit = gr.Button('Edit last question')
-        regen = gr.Button('Re-generate')
+        submit = gr.Button('提交')
+        edit = gr.Button('修改上一问题')
+        regen = gr.Button('重新生成')
 
-    delete = gr.Button('Reset chat')
+    delete = gr.Button('清空聊天')
 
     with gr.Row():
-        save = gr.Button('保存对话（在 `log` 文件夹下）', visible=False)
-        load = gr.UploadButton('读取对话', file_types=['file'], file_count='single', visible=False)
+        save = gr.Button('保存对话（在 `log` 文件夹下）')
+        load = gr.UploadButton('读取对话', file_types=['file'], file_count='single')
 
     input_list = [message, chatbot, state, max_length, top_p, temperature, memory_limit]
     output_list = [chatbot, state, message]
