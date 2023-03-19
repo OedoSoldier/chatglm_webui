@@ -106,12 +106,20 @@ def load_promote(file_name: str) -> tuple[str, str]:
     with open(
         file=os.path.join(args.promote_path, file_name), encoding="utf-8"
     ) as promote_file:
-        dict_list = json.load(promote_file)
-        history = [
-            (restore_str(item["input"]), restore_str(item["output"]))
-            for item in dict_list
-        ]
-        return history[0]
+        if file_name.endswith(".txt"):
+            lines = promote_file.readlines()
+            if len(lines) <= 1:
+                raise ValueError("promote has no resp")
+            promote = "".join(lines[:-1])
+            first_resp = lines[-1]
+            return (promote, first_resp)
+        elif file_name.endswith(".json"):
+            dict_list = json.load(promote_file)
+            history = [
+                (restore_str(item["input"]), restore_str(item["output"]))
+                for item in dict_list
+            ]
+            return history[0]
 
 
 def chat_wrapper(
@@ -119,9 +127,7 @@ def chat_wrapper(
     query: str,
     styled_history: list[tuple[str, str]],
     history: list[tuple[str, str]],
-    max_length: int,
-    top_p: float,
-    temperature: float,
+    config: dict,
 ):
     if promote != "none":
         promot_val = load_promote(promote)
@@ -131,27 +137,17 @@ def chat_wrapper(
             query = promot_val[0]
         elif len(promot_val[1]) != 0:
             history[0] = promot_val
-    message, history = model.chat(
-        tokenizer,
-        query,
-        history=history,
-        max_length=max_length,
-        top_p=top_p,
-        temperature=temperature,
-    )
+    message, history = model.chat(tokenizer, query, history=history, **config)
+    print(f"config:{config}\nquery:{query}\noutput:{message}")
     styled_history = [(parse_text(h[0]), parse_text(h[1])) for h in history]
     return styled_history, history, "", get_current_vram()
 
 
-def regenerate_wrapper(
-    promote, query, styled_history, history, max_length, top_p, temperature
-):
+def regenerate_wrapper(promote, query, styled_history, history, config):
     if len(history) == 0:
         return [], [], "", get_current_vram()
     new_styled_history, new_history, query, vram = edit_wrapper(styled_history, history)
-    return chat_wrapper(
-        promote, query, new_styled_history, new_history, max_length, top_p, temperature
-    )
+    return chat_wrapper(promote, query, new_styled_history, new_history, config)
 
 
 def edit_wrapper(styled_history, history):
@@ -189,10 +185,19 @@ def save_history(history, promote):
     return file_name
 
 
-def save_config(max_length, top_p, temperature):
+def format_config(max_new_tokens, top_p, temperature, repetition_penalty=1):
+    return {
+        "max_new_tokens": max_new_tokens,
+        "top_p": top_p,
+        "temperature": temperature,
+        "repetition_penalty": repetition_penalty,
+    }
+
+
+def save_config(k):
     with open("config.json", "w") as f:
         json.dump(
-            {"max_length": max_length, "top_p": top_p, "temperature": temperature},
+            format_config(**k),
             f,
             indent=2,
         )
@@ -220,7 +225,7 @@ def get_current_vram():
 def main():
     with gr.Blocks(title="ChatGLM") as app:
         if not os.path.isfile("config.json"):
-            save_config(4096, 0.7, 0.95)
+            save_config(format_config(4096, 0.7, 0.95))
 
         with open("config.json", "r", encoding="utf-8") as f:
             configs = json.loads(f.read())
@@ -241,28 +246,35 @@ def main():
                     gr.Markdown(
                         """`Max Length` 是生成文本时的长度限制，`Top P` 控制输出文本中概率最高前 p 个单词的总概率，`Temperature` 控制生成文本的多样性和随机性。<br/>`Top P` 变小会生成更多样和不相关的文本；变大会生成更保守和相关的文本。<br/>`Temperature` 变小会生成更保守和相关的文本；变大会生成更奇特和不相关的文本。"""
                     )
-                    with gr.Row():
-                        top_p = gr.Slider(
-                            minimum=0.01,
-                            maximum=1.0,
-                            step=0.01,
-                            label="Top P",
-                            value=configs["top_p"],
-                        )
-                        temperature = gr.Slider(
-                            minimum=0.01,
-                            maximum=1.0,
-                            step=0.01,
-                            label="Temperature",
-                            value=configs["temperature"],
-                        )
+                    top_p = gr.Slider(
+                        minimum=0.01,
+                        maximum=1.0,
+                        step=0.01,
+                        label="Top P",
+                        value=configs["top_p"],
+                    )
+                    temperature = gr.Slider(
+                        minimum=0.01,
+                        maximum=1.0,
+                        step=0.01,
+                        label="Temperature",
+                        value=configs["temperature"],
+                    )
                     max_length = gr.Slider(
                         minimum=4.0,
                         maximum=4096.0,
                         step=4.0,
-                        label="Max Length",
-                        value=configs["max_length"],
+                        label="Max Gen Length",
+                        value=configs["max_new_tokens"],
                     )
+                    repetition_penalty = gr.Slider(
+                        minimum=1,
+                        maximum=2,
+                        step=0.05,
+                        label="Repetition Penalty",
+                        value=configs["repetition_penalty"],
+                    )
+                    config_state = gr.State(configs)
                     save_conf = gr.Button("保存设置")
             with gr.Column(scale=7):
                 gr.Markdown("""<h2>聊天记录</h2>""")
@@ -290,10 +302,12 @@ def main():
                     regen = gr.Button("重新生成")
                 delete = gr.Button("清空聊天", variant="stop")
 
-        submit_list = [promot, message, chatbot, state, max_length, top_p, temperature]
+        submit_list = [promot, message, chatbot, state, config_state]
         state_list = [chatbot, state, message, vram]
-
-        save_conf.click(save_config, inputs=[max_length, top_p, temperature])
+        config_list = [max_length, top_p, temperature, repetition_penalty]
+        for v in config_list:
+            v.change(format_config, inputs=config_list, outputs=config_state)
+        save_conf.click(save_config, inputs=[config_state])
         load.upload(load_history, inputs=[load, chatbot, state], outputs=state_list)
         save.click(save_history, inputs=[state, promot], outputs=[file])
         message.submit(
